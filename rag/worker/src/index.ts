@@ -55,7 +55,8 @@ Use only the provided context.
 If the answer is not in the context, say you do not know.
 Do not invent experience, employers, skills, degrees, links, or claims.
 Keep answers concise and helpful.
-Include relevant source links when available.`;
+Use Markdown only when it improves readability.
+Do not include citations, [Source N] labels, a source list, or a Sources section; the interface displays retrieved sources separately.`;
 
 const rateLimitStore = new Map<string, number[]>();
 

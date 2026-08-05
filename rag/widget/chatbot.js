@@ -13,6 +13,8 @@
     "How can I contact Matthew?",
   ];
 
+  const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
   const history = [];
 
   function createRoot() {
@@ -42,11 +44,131 @@
     return root;
   }
 
+  function getSafeLink(href) {
+    try {
+      const url = new URL(href, window.location.href);
+      if (!SAFE_LINK_PROTOCOLS.has(url.protocol)) return null;
+
+      return {
+        href: url.href,
+        isExternal:
+          (url.protocol === "http:" || url.protocol === "https:") &&
+          url.origin !== window.location.origin,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function appendInlineMarkdown(parent, text) {
+    const tokenPattern =
+      /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|__([^_\n]+)__|(^|[^\w*])\*([^*\n]+)\*(?!\*)|(^|[^\w_])_([^_\n]+)_(?!\w)/g;
+    let cursor = 0;
+    let match;
+
+    while ((match = tokenPattern.exec(text)) !== null) {
+      if (match.index > cursor) {
+        parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+      }
+
+      if (match[1] !== undefined) {
+        const code = document.createElement("code");
+        code.textContent = match[1];
+        parent.appendChild(code);
+      } else if (match[2] !== undefined) {
+        const safeLink = getSafeLink(match[3]);
+        if (safeLink) {
+          const link = document.createElement("a");
+          link.href = safeLink.href;
+          if (safeLink.isExternal) {
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+          }
+          appendInlineMarkdown(link, match[2]);
+          parent.appendChild(link);
+        } else {
+          parent.appendChild(document.createTextNode(match[2]));
+        }
+      } else if (match[4] !== undefined || match[5] !== undefined) {
+        const strong = document.createElement("strong");
+        appendInlineMarkdown(strong, match[4] ?? match[5]);
+        parent.appendChild(strong);
+      } else {
+        const prefix = match[6] ?? match[8];
+        const content = match[7] ?? match[9];
+        if (prefix) parent.appendChild(document.createTextNode(prefix));
+
+        const emphasis = document.createElement("em");
+        appendInlineMarkdown(emphasis, content);
+        parent.appendChild(emphasis);
+      }
+
+      cursor = tokenPattern.lastIndex;
+    }
+
+    if (cursor < text.length) {
+      parent.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+  }
+
+  function renderMarkdown(text) {
+    const fragment = document.createDocumentFragment();
+    const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+    let paragraphLines = [];
+    let activeList = null;
+
+    function flushParagraph() {
+      if (!paragraphLines.length) return;
+
+      const paragraph = document.createElement("p");
+      appendInlineMarkdown(paragraph, paragraphLines.join(" "));
+      fragment.appendChild(paragraph);
+      paragraphLines = [];
+    }
+
+    for (const line of lines) {
+      if (!line.trim()) {
+        flushParagraph();
+        activeList = null;
+        continue;
+      }
+
+      const unorderedItem = line.match(/^\s*[-+*]\s+(.+)$/);
+      const orderedItem = line.match(/^\s*\d+[.)]\s+(.+)$/);
+      const listItem = unorderedItem || orderedItem;
+
+      if (listItem) {
+        flushParagraph();
+        const listTag = orderedItem ? "OL" : "UL";
+
+        if (!activeList || activeList.tagName !== listTag) {
+          activeList = document.createElement(listTag.toLowerCase());
+          fragment.appendChild(activeList);
+        }
+
+        const item = document.createElement("li");
+        appendInlineMarkdown(item, listItem[1]);
+        activeList.appendChild(item);
+        continue;
+      }
+
+      activeList = null;
+      paragraphLines.push(line.trim());
+    }
+
+    flushParagraph();
+    return fragment;
+  }
+
   function appendMessage(role, text) {
     const messages = document.getElementById("portfolio-chatbot-messages");
     const bubble = document.createElement("div");
     bubble.className = `chatbot-message ${role}`;
-    bubble.textContent = text;
+    if (role === "assistant") {
+      bubble.appendChild(renderMarkdown(text));
+    } else {
+      bubble.textContent = text;
+    }
     messages.appendChild(bubble);
     messages.scrollTop = messages.scrollHeight;
     return bubble;
@@ -88,12 +210,15 @@
     list.className = "chatbot-source-list";
 
     for (const source of sources) {
-      const chip = document.createElement(source.url ? "a" : "span");
+      const safeLink = source.url ? getSafeLink(source.url) : null;
+      const chip = document.createElement(safeLink ? "a" : "span");
       chip.className = "chatbot-source-chip";
-      if (source.url) {
-        chip.href = source.url;
-        chip.target = "_blank";
-        chip.rel = "noopener noreferrer";
+      if (safeLink) {
+        chip.href = safeLink.href;
+        if (safeLink.isExternal) {
+          chip.target = "_blank";
+          chip.rel = "noopener noreferrer";
+        }
       }
       chip.textContent = `${source.title} - ${source.section}`;
       list.appendChild(chip);

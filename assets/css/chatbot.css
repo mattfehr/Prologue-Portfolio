@@ -148,6 +148,53 @@
   align-self: flex-start;
   background: var(--chatbot-panel);
   color: var(--chatbot-text);
+  white-space: normal;
+}
+
+.chatbot-message.assistant p,
+.chatbot-message.assistant ul,
+.chatbot-message.assistant ol {
+  margin: 0 0 0.55rem;
+}
+
+.chatbot-message.assistant ul,
+.chatbot-message.assistant ol {
+  padding-left: 1.25rem;
+}
+
+.chatbot-message.assistant ul {
+  list-style: disc;
+}
+
+.chatbot-message.assistant ol {
+  list-style: decimal;
+}
+
+.chatbot-message.assistant li + li {
+  margin-top: 0.3rem;
+}
+
+.chatbot-message.assistant > :last-child {
+  margin-bottom: 0;
+}
+
+.chatbot-message.assistant strong {
+  color: inherit;
+  font-weight: 700;
+}
+
+.chatbot-message.assistant code {
+  padding: 0.08rem 0.25rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.07);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82em;
+}
+
+.chatbot-message.assistant a {
+  color: var(--chatbot-accent-dark);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
 }
 
 .chatbot-message.error {
